@@ -1,0 +1,139 @@
+isgod = {}
+lastground = {}
+
+function Noclip(client,args)
+	if GetEntityMoveType(client) ~= 8 then
+		SetEntityMoveType(client,8)
+	else
+		SetEntityMoveType(client,2)
+	end
+	return 0
+end
+
+function OnDamage(client, attacker, inflictor, damage, damagetype, weapon, damageForceX, damageForceY, damageForceZ, damagePositionX, damagePositionY, damagePositionZ)
+	x,y,z = GetEntVel(client)
+	x = x + damageForceX/20
+	y = y + damageForceY/20
+	z = z + damageForceZ/20
+	SetEntVel(client,x,y,z)
+	if And(damagetype,32) == 32 or client == attacker then
+		return 0
+	end 
+	return 1
+end
+
+function God(client,args)
+	if isgod[client] then
+		isgod[client] = false
+	else
+		isgod[client] = true
+	end
+end
+
+AddCommandListener("cannisters_activate",Noclip)
+AddCommandListener("noclip",Noclip)
+AddCommandListener("god",God)
+
+function OnPlayerSpawned(client)
+	for i=1,40 do
+		GivePlayerAmmo(client,6000,i,1)
+	end
+	
+	GivePlayerItem(client,"weapon_smg1")
+	GivePlayerItem(client,"weapon_physcannon")
+	GivePlayerItem(client,"weapon_pistol")
+	GivePlayerItem(client,"weapon_357")
+	GivePlayerItem(client,"weapon_ar2")
+	GivePlayerItem(client,"weapon_shotgun")
+	GivePlayerItem(client,"weapon_frag")
+	GivePlayerItem(client,"weapon_crossbow")
+	GivePlayerItem(client,"weapon_rpg")
+end
+
+function Sign(x)
+	if x>0 then
+		return 1
+	elseif x<0 then
+		return -1
+	end
+	return 0
+end
+
+function grenadeboost(entity)
+	if IsValidEdict(entity) ~= 0 then
+		x,y,z = GetEntPos(entity)
+		minimum = 2^30
+		best = 1
+		for client=1,32 do
+			if IsClientInGame(client) ~= 0 then
+				px,py,pz = GetClientEyePosition(client)
+				px,py,pz = x-px,y-py,z-pz
+				dist = px*px+py*py+pz*pz
+				if dist < minimum then
+					best = client
+					minimum = dist
+				end
+			end
+		end
+		px,py,pz = GetEntVel(best)
+		x,y,z = GetEntVel(entity)
+		x,y,z = x+px,y+py,z+pz
+		SetEntVel(entity,x,y,z)
+	end
+end
+
+function OnEntityCreated(entity,classname)
+	if classname == "grenade_ar2" then
+		OnNextTick(grenadeboost,entity)
+	end
+end
+
+function OnGameFrame()
+	for i=1,32 do
+		if IsClientInGame(i) ~= 0 then
+			f = IsClientStanding(i)
+			if (f ~= -1) and (And(GetClientButtons(i),2) == 2) then
+				x,y,z = GetEntVel(i)
+				x = x*1.25+Sign(x)*200
+				y = y*1.25+Sign(y)*200
+				z = 200
+				SetEntVel(i,x,y,z)
+				ForceClientInAir(i)
+			end
+		end
+	end
+end
+--[[lastbuttons = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+function OnPlayerRunCmd(client,buttons,impulse,velx,vely,velz,angx,angy,angz,weapon,subtype,cmdnum,seed,mousex,mousey)
+	return buttons,impulse,velx,vely,velz,angx,angy,angz,weapon,subtype,cmdnum,seed,mousex,mousey
+end]]
+function ActivateSpawnMenu(client,args)
+	SendCustomPacket(client,"spawnmenu")
+end
+
+function Spawn(client,args)
+	model = GetConsoleCommandArg(1)
+	ent = CreateEntityByName("prop_physics")
+	SetModel(ent,model)
+	SetSolid(ent,6)
+	x,y,z = GetClientEyePosition(client)
+	ax,ay,az = GetClientEyeAngles(client)
+	--dx,dy,dz,_,_,_,_,_,_ = GetAngleVectors(angx,angy,angz)
+	--x,y,z = x-dx*20,y-dy*20,z-dz*20
+	x,y,z = TraceRayDirection(x,y,z,ax,ay,az,client)
+	SetEntPos(ent,x,y,z)
+	DispatchSpawn(ent)
+end
+
+AddCommandListener("cannisters_deactivate",ActivateSpawnMenu)
+
+RegisterConsoleCommand("spawn",Spawn)
+
+function OnCustomPacket(packet)
+	print(packet)
+end
+
+function OnSteamConnected()
+	a,b,c,d = GetServerIP()
+	ExecuteCommand("sv_downloadurl \"http://"..tostring(a).."."..tostring(b).."."..tostring(c).."."..tostring(d)..":27000/canvas\"")
+end
